@@ -2,8 +2,8 @@ import { Client, GatewayIntentBits } from "discord.js";
 import {
   joinVoiceChannel,
   getVoiceConnection,
-  VoiceConnectionStatus,
-  entersState
+  entersState,
+  VoiceConnectionStatus
 } from "@discordjs/voice";
 
 const client = new Client({
@@ -29,12 +29,11 @@ async function connectVoice(guild) {
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator,
       selfMute: true,
-      selfDeaf: false,
-      encryptionMode: "aead_xchacha20_poly1305_rtpsize"
+      selfDeaf: false
     });
 
     connection.on("error", err => {
-      console.error("🎤 Voice error yakalandı:", err.message);
+      console.error("🎤 Voice error:", err.message);
       safeReconnect(guild);
     });
 
@@ -55,7 +54,7 @@ function safeReconnect(guild) {
   if (reconnecting) return;
 
   reconnecting = true;
-  console.log("🔁 Güvenli reconnect başlatıldı");
+  console.log("🔁 Reconnect başlatıldı");
 
   try {
     const conn = getVoiceConnection(guild.id);
@@ -84,13 +83,8 @@ client.on("voiceStateUpdate", (_, newState) => {
   }
 });
 
-/* ---- GLOBAL CRASH KALKANI ---- */
-process.on("unhandledRejection", err => {
-  console.error("UnhandledRejection yakalandı:", err);
-});
-
-process.on("uncaughtException", err => {
-  console.error("UncaughtException yakalandı:", err);
-});
+/* GLOBAL KORUMA */
+process.on("unhandledRejection", console.error);
+process.on("uncaughtException", console.error);
 
 client.login(process.env.TOKEN);
