@@ -1,59 +1,64 @@
-const { Client } = require('discord.js-selfbot-v13');
-const { joinVoiceChannel, VoiceConnectionStatus, generateDependencyReport } = require('@discordjs/voice');
-const express = require('express');
+import { Client, GatewayIntentBits } from "discord.js";
+import {
+  joinVoiceChannel,
+  getVoiceConnection,
+  entersState,
+  VoiceConnectionStatus
+} from "@discordjs/voice";
 
-// --- BAĞIMLILIK RAPORU ---
-// Bu çıktı sayesinde Railway loglarında hangi kütüphanenin eksik olduğunu görebiliriz.
-console.log("--- SES SİSTEMİ DURUM RAPORU ---");
-console.log(generateDependencyReport());
-console.log("--------------------------------");
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates
+  ]
+});
 
-const app = express();
-app.get('/', (req, res) => res.send('Ses Sistemi Aktif!'));
-app.listen(process.env.PORT || 3000);
+async function connectVoice(guild) {
+  const existing = getVoiceConnection(guild.id);
+  if (existing) return;
 
-const client = new Client({ checkUpdate: false });
+  try {
+    const connection = joinVoiceChannel({
+      channelId: process.env.VOICE_CHANNEL_ID,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfMute: true,
+      selfDeaf: false,
+      encryptionMode: "aead_xchacha20_poly1305_rtpsize"
+    });
 
-client.on('ready', async () => {
-    console.log(`>>> Giriş başarılı: ${client.user.tag}`);
-    
-    const baglan = () => {
-        const guild = client.guilds.cache.get(process.env.GUILD_ID);
-        const channel = client.channels.cache.get(process.env.CHANNEL_ID);
+    await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+    console.log("🔊 Ses kanalına bağlandı");
+  } catch (err) {
+    console.error("❌ Ses bağlantı hatası:", err);
+    setTimeout(() => connectVoice(guild), 5000);
+  }
+}
 
-        if (!guild || !channel) {
-            console.error("ID'ler hatalı! Lütfen Variables kısmını kontrol edin.");
-            return;
-        }
+client.once("ready", async () => {
+  console.log(`🟢 Aktif: ${client.user.tag}`);
 
-        const connection = joinVoiceChannel({
-            channelId: channel.id,
-            guildId: guild.id,
-            adapterCreator: guild.voiceAdapterCreator,
-            selfMute: true,
-            selfDeaf: true,
-        });
+  const guild = await client.guilds.fetch(process.env.GUILD_ID);
+  connectVoice(guild);
+});
 
-        connection.on(VoiceConnectionStatus.Ready, () => {
-            console.log("!!! BAĞLANTI KURULDU: Şu an ses kanalındasın.");
-        });
+client.on("voiceStateUpdate", (_, newState) => {
+  if (
+    newState.id === client.user.id &&
+    newState.channelId !== process.env.VOICE_CHANNEL_ID
+  ) {
+    console.log("⚠️ Sesten atıldı, geri giriliyor");
+    setTimeout(() => connectVoice(newState.guild), 3000);
+  }
+});
 
-        // Hata durumunda (Şifreleme hatası dahil) botu ayakta tutar
-        connection.on('error', (err) => {
-            console.error("Ses Bağlantı Hatası:", err.message);
-            if (err.message.includes('encryption modes')) {
-                console.log("Şifreleme sorunu algılandı, yeniden deneme başlatılıyor...");
-            }
-            setTimeout(baglan, 10000); // 10 saniye sonra tekrar dene
-        });
+/* ---- CRASH KORUMASI ---- */
+process.on("unhandledRejection", err => {
+  console.error("UnhandledRejection:", err);
+});
 
-        connection.on(VoiceConnectionStatus.Disconnected, () => {
-            console.log("Bağlantı koptu, yeniden bağlanılıyor...");
-            setTimeout(baglan, 5000);
-        });
-    };
-
-    baglan();
+process.on("uncaughtException", err => {
+  console.error("UncaughtException:", err);
 });
 
 client.login(process.env.TOKEN);
