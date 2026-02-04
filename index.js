@@ -1,57 +1,55 @@
 const { Client } = require('discord.js-selfbot-v13');
-const { joinVoiceChannel } = require('@discordjs/voice');
+const { joinVoiceChannel, VoiceConnectionStatus, generateDependencyReport } = require('@discordjs/voice');
 const express = require('express');
 
-// --- AYARLAR (Railway Variables'dan gelecek) ---
-const TOKEN = process.env.TOKEN;      // Kullanıcı Tokeni (User Token)
-const GUILD_ID = process.env.GUILD_ID; // Sunucu ID
-const CHANNEL_ID = process.env.CHANNEL_ID; // Ses Kanalı ID
+// --- BAĞIMLILIK RAPORU (Hata Çözmek İçin Kritik) ---
+console.log("--- SES SİSTEMİ RAPORU ---");
+console.log(generateDependencyReport());
+console.log("--------------------------");
 
-// --- UPTIME İÇİN WEB SUNUCUSU ---
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Sistem Aktif.'));
+app.listen(process.env.PORT || 3000);
 
-app.get('/', (req, res) => {
-    res.send('Self-bot ses kanalında aktif!');
-});
-
-app.listen(PORT, () => {
-    console.log(`Uptime sunucusu çalışıyor: Port ${PORT}`);
-});
-
-// --- SELF-BOT İŞLEMLERİ ---
-const client = new Client({
-    checkUpdate: false // Konsolda güncelleme uyarısı vermemesi için
-});
+const client = new Client({ checkUpdate: false });
 
 client.on('ready', async () => {
-    console.log(`${client.user.username} hesabına giriş yapıldı!`);
-    
-    joinChannel();
-    
-    // Bağlantı koparsa diye periyodik kontrol (30 dakikada bir)
-    setInterval(joinChannel, 1000 * 60 * 30);
+    console.log(`>>> ${client.user.tag} sisteme giriş yaptı!`);
+    connectToVoice();
 });
 
-async function joinChannel() {
-    const guild = client.guilds.cache.get(GUILD_ID);
-    if (!guild) return console.log("HATA: Sunucu bulunamadı veya hesaba erişimi yok.");
+async function connectToVoice() {
+    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+    const channel = client.channels.cache.get(process.env.CHANNEL_ID);
 
-    const channel = guild.channels.cache.get(CHANNEL_ID);
-    if (!channel) return console.log("HATA: Kanal bulunamadı.");
+    if (!guild || !channel) {
+        return console.error("Variables kısmında GUILD_ID veya CHANNEL_ID hatalı!");
+    }
 
     try {
-        joinVoiceChannel({
+        const connection = joinVoiceChannel({
             channelId: channel.id,
             guildId: guild.id,
             adapterCreator: guild.voiceAdapterCreator,
-            selfDeaf: false, // İstersen false yapıp duyabilirsin
-            selfMute: true   // Mikrofon kapalı görünsün
+            selfMute: true,
+            selfDeaf: true,
+            group: client.user.id
         });
-        console.log("Ses kanalına başarıyla giriş yapıldı.");
-    } catch (error) {
-        console.error("Bağlantı hatası:", error);
+
+        connection.on(VoiceConnectionStatus.Ready, () => {
+            console.log("!!! BAŞARILI: Şu an ses kanalındasın.");
+        });
+
+        connection.on('error', (error) => {
+            console.error("Bağlantı hatası (Yeniden deneniyor):", error.message);
+            // Şifreleme hatası olsa bile botun çökmesini engeller ve tekrar dener
+            setTimeout(connectToVoice, 10000);
+        });
+
+    } catch (e) {
+        console.error("Bağlantı başlatılamadı:", e);
+        setTimeout(connectToVoice, 15000);
     }
 }
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
