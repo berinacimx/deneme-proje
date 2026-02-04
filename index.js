@@ -41,10 +41,6 @@ async function connectVoice(guild) {
     console.log("🔊 Ses kanalına bağlandı");
   } catch (err) {
     console.error("❌ Bağlanma hatası:", err.message);
-    setTimeout(() => {
-      reconnecting = false;
-      connectVoice(guild);
-    }, 5000);
   }
 
   reconnecting = false;
@@ -52,9 +48,7 @@ async function connectVoice(guild) {
 
 function safeReconnect(guild) {
   if (reconnecting) return;
-
   reconnecting = true;
-  console.log("🔁 Reconnect başlatıldı");
 
   try {
     const conn = getVoiceConnection(guild.id);
@@ -78,12 +72,10 @@ client.on("voiceStateUpdate", (_, newState) => {
     newState.id === client.user.id &&
     newState.channelId !== process.env.VOICE_CHANNEL_ID
   ) {
-    console.log("⚠️ Sesten atıldı");
     safeReconnect(newState.guild);
   }
 });
 
-/* GLOBAL KORUMA */
 process.on("unhandledRejection", console.error);
 process.on("uncaughtException", console.error);
 
