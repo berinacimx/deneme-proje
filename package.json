@@ -1,14 +1,18 @@
 {
-  name discord-ses-botu,
-  version 1.0.0,
-  main index.js,
-  scripts {
-    start node index.js  -- BU SATIR ÇOK ÖNEMLİ
+  "name": "discord-self-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
   },
-  dependencies {
-    @discordjsvoice ^...,
-    discord.js-selfbot-v13 ^...,
-    express ^...,
-    libsodium-wrappers ^...
+  "engines": {
+    "node": "18.x" 
+  },
+  "dependencies": {
+    "discord.js-selfbot-v13": "^2.15.2",
+    "@discordjs/voice": "^0.16.1",
+    "express": "^4.18.2",
+    "libsodium-wrappers": "^0.7.11"
   }
 }
