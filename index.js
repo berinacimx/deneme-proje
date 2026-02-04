@@ -2,35 +2,44 @@ const { Client } = require('discord.js-selfbot-v13');
 const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
 
-// Express Kurulumu (Railway'in kapanmaması için)
+// --- 1. UPTIME SUNUCUSU ---
 const app = express();
-app.get('/', (req, res) => res.send('Bot Canlı!'));
-app.listen(process.env.PORT || 3000);
+app.get('/', (req, res) => res.send('Sistem Aktif!'));
+app.listen(process.env.PORT || 3000, () => console.log("Web portu hazır."));
 
+// --- 2. SELF-BOT AYARLARI ---
 const client = new Client({ checkUpdate: false });
 
 client.on('ready', async () => {
-    console.log(`${client.user.tag} aktif!`);
+    console.log(`${client.user.tag} giriş yaptı!`);
     
-    const connect = () => {
+    const stayInVoice = () => {
         const guild = client.guilds.cache.get(process.env.GUILD_ID);
         const channel = client.channels.cache.get(process.env.CHANNEL_ID);
 
-        if (guild && channel) {
+        if (!guild || !channel) {
+            console.error("ID'ler hatalı veya kanal bulunamadı!");
+            return;
+        }
+
+        try {
             joinVoiceChannel({
                 channelId: channel.id,
                 guildId: guild.id,
                 adapterCreator: guild.voiceAdapterCreator,
-                selfMute: true,
-                selfDeaf: true
+                selfMute: true, // Mikrofon kapalı
+                selfDeaf: true  // Sağırlaştırma açık (veri tasarrufu)
             });
-            console.log("Ses kanalına girildi.");
+            console.log(`[${new Date().toLocaleTimeString()}] Ses kanalına bağlanıldı.`);
+        } catch (err) {
+            console.error("Bağlantı hatası:", err);
         }
     };
 
-    connect();
-    // Her 20 dakikada bir bağlantıyı tazele (Düşmeyi önler)
-    setInterval(connect, 1000 * 60 * 20);
+    stayInVoice();
+    // Her 15 dakikada bir bağlantıyı tazeler (Railway uyku modunu engeller)
+    setInterval(stayInVoice, 1000 * 60 * 15);
 });
 
+// Railway Variables kısmına gireceğin TOKEN ile giriş yapar
 client.login(process.env.TOKEN);
