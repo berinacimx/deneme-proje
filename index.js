@@ -2,54 +2,58 @@ const { Client } = require('discord.js-selfbot-v13');
 const { joinVoiceChannel, VoiceConnectionStatus, generateDependencyReport } = require('@discordjs/voice');
 const express = require('express');
 
-// --- BAĞIMLILIK RAPORU (Hata Çözmek İçin Kritik) ---
-console.log("--- SES SİSTEMİ RAPORU ---");
+// --- BAĞIMLILIK RAPORU ---
+// Bu çıktı sayesinde Railway loglarında hangi kütüphanenin eksik olduğunu görebiliriz.
+console.log("--- SES SİSTEMİ DURUM RAPORU ---");
 console.log(generateDependencyReport());
-console.log("--------------------------");
+console.log("--------------------------------");
 
 const app = express();
-app.get('/', (req, res) => res.send('Sistem Aktif.'));
+app.get('/', (req, res) => res.send('Ses Sistemi Aktif!'));
 app.listen(process.env.PORT || 3000);
 
 const client = new Client({ checkUpdate: false });
 
 client.on('ready', async () => {
-    console.log(`>>> ${client.user.tag} sisteme giriş yaptı!`);
-    connectToVoice();
-});
+    console.log(`>>> Giriş başarılı: ${client.user.tag}`);
+    
+    const baglan = () => {
+        const guild = client.guilds.cache.get(process.env.GUILD_ID);
+        const channel = client.channels.cache.get(process.env.CHANNEL_ID);
 
-async function connectToVoice() {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
-    const channel = client.channels.cache.get(process.env.CHANNEL_ID);
+        if (!guild || !channel) {
+            console.error("ID'ler hatalı! Lütfen Variables kısmını kontrol edin.");
+            return;
+        }
 
-    if (!guild || !channel) {
-        return console.error("Variables kısmında GUILD_ID veya CHANNEL_ID hatalı!");
-    }
-
-    try {
         const connection = joinVoiceChannel({
             channelId: channel.id,
             guildId: guild.id,
             adapterCreator: guild.voiceAdapterCreator,
             selfMute: true,
             selfDeaf: true,
-            group: client.user.id
         });
 
         connection.on(VoiceConnectionStatus.Ready, () => {
-            console.log("!!! BAŞARILI: Şu an ses kanalındasın.");
+            console.log("!!! BAĞLANTI KURULDU: Şu an ses kanalındasın.");
         });
 
-        connection.on('error', (error) => {
-            console.error("Bağlantı hatası (Yeniden deneniyor):", error.message);
-            // Şifreleme hatası olsa bile botun çökmesini engeller ve tekrar dener
-            setTimeout(connectToVoice, 10000);
+        // Hata durumunda (Şifreleme hatası dahil) botu ayakta tutar
+        connection.on('error', (err) => {
+            console.error("Ses Bağlantı Hatası:", err.message);
+            if (err.message.includes('encryption modes')) {
+                console.log("Şifreleme sorunu algılandı, yeniden deneme başlatılıyor...");
+            }
+            setTimeout(baglan, 10000); // 10 saniye sonra tekrar dene
         });
 
-    } catch (e) {
-        console.error("Bağlantı başlatılamadı:", e);
-        setTimeout(connectToVoice, 15000);
-    }
-}
+        connection.on(VoiceConnectionStatus.Disconnected, () => {
+            console.log("Bağlantı koptu, yeniden bağlanılıyor...");
+            setTimeout(baglan, 5000);
+        });
+    };
+
+    baglan();
+});
 
 client.login(process.env.TOKEN);
