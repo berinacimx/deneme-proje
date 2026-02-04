@@ -1,59 +1,57 @@
 const { Client } = require('discord.js-selfbot-v13');
-const { joinVoiceChannel, VoiceConnectionStatus, enterState } = require('@discordjs/voice');
+const { joinVoiceChannel } = require('@discordjs/voice');
 const express = require('express');
 
-// --- UPTIME SERVER ---
+// --- AYARLAR (Railway Variables'dan gelecek) ---
+const TOKEN = process.env.TOKEN;      // Kullanıcı Tokeni (User Token)
+const GUILD_ID = process.env.GUILD_ID; // Sunucu ID
+const CHANNEL_ID = process.env.CHANNEL_ID; // Ses Kanalı ID
+
+// --- UPTIME İÇİN WEB SUNUCUSU ---
 const app = express();
-app.get('/', (req, res) => res.send('Sistem Aktif ve Stabil.'));
-app.listen(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
 
-// --- SELF-BOT SETUP ---
-const client = new Client({ checkUpdate: false });
-
-client.on('ready', async () => {
-    console.log(`>>> Giriş Yapıldı: ${client.user.tag}`);
-    keepVoiceActive();
+app.get('/', (req, res) => {
+    res.send('Self-bot ses kanalında aktif!');
 });
 
-async function keepVoiceActive() {
-    const GUILD_ID = process.env.GUILD_ID;
-    const CHANNEL_ID = process.env.CHANNEL_ID;
+app.listen(PORT, () => {
+    console.log(`Uptime sunucusu çalışıyor: Port ${PORT}`);
+});
 
+// --- SELF-BOT İŞLEMLERİ ---
+const client = new Client({
+    checkUpdate: false // Konsolda güncelleme uyarısı vermemesi için
+});
+
+client.on('ready', async () => {
+    console.log(`${client.user.username} hesabına giriş yapıldı!`);
+    
+    joinChannel();
+    
+    // Bağlantı koparsa diye periyodik kontrol (30 dakikada bir)
+    setInterval(joinChannel, 1000 * 60 * 30);
+});
+
+async function joinChannel() {
     const guild = client.guilds.cache.get(GUILD_ID);
-    const channel = client.channels.cache.get(CHANNEL_ID);
+    if (!guild) return console.log("HATA: Sunucu bulunamadı veya hesaba erişimi yok.");
 
-    if (!guild || !channel) {
-        console.error("HATA: Sunucu veya Kanal ID bulunamadı. Lütfen Variables kısmını kontrol edin.");
-        return;
-    }
+    const channel = guild.channels.cache.get(CHANNEL_ID);
+    if (!channel) return console.log("HATA: Kanal bulunamadı.");
 
     try {
-        const connection = joinVoiceChannel({
+        joinVoiceChannel({
             channelId: channel.id,
             guildId: guild.id,
             adapterCreator: guild.voiceAdapterCreator,
-            selfMute: true,
-            selfDeaf: true,
+            selfDeaf: false, // İstersen false yapıp duyabilirsin
+            selfMute: true   // Mikrofon kapalı görünsün
         });
-
-        // Bağlantı durumlarını izle ve koparsa yeniden bağlan
-        connection.on(VoiceConnectionStatus.Disconnected, async () => {
-            try {
-                await Promise.race([
-                    enterState(connection, VoiceConnectionStatus.Signalling, 5_000),
-                    enterState(connection, VoiceConnectionStatus.Connecting, 5_000),
-                ]);
-            } catch (error) {
-                console.log("Bağlantı koptu, 5 saniye sonra tekrar deneniyor...");
-                setTimeout(keepVoiceActive, 5000);
-            }
-        });
-
-        console.log(`[${new Date().toLocaleTimeString()}] Ses kanalına başarıyla bağlandı.`);
-    } catch (err) {
-        console.error("Kritik Bağlantı Hatası:", err);
-        setTimeout(keepVoiceActive, 10000);
+        console.log("Ses kanalına başarıyla giriş yapıldı.");
+    } catch (error) {
+        console.error("Bağlantı hatası:", error);
     }
 }
 
-client.login(process.env.TOKEN);
+client.login(TOKEN);
