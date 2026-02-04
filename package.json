@@ -1,6 +1,7 @@
 {
-  "name": "afk-bot",
-  "version": "1.0.0",
+  "name": "discord-afk-system",
+  "version": "1.1.0",
+  "description": "7/24 Persistent Voice Connection",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
